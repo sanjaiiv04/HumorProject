@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabaseClient'
+import { createClient } from '@/lib/supabase/server'
 
 interface Grocery {
   Name: string
@@ -6,10 +6,10 @@ interface Grocery {
 }
 
 export default async function Home() {
-  const { data: groceries, error } = await supabase
-    .from('Groceries')
-    .select('*')
-
+  const supabase = await createClient()
+  const { data: groceries, error } = await supabase.from('Groceries').select('*')
+  //console.log(groceries);
+  //console.log(error);
   if (error) {
     return <p className="p-8 text-red-600">Error loading groceries: {error.message}</p>
   }
