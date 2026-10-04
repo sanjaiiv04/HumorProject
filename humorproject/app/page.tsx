@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
+import AppShell from '@/components/AppShell'
 
 interface Grocery {
   Name: string
@@ -20,55 +20,53 @@ export default async function Home() {
     .from('Groceries')
     .select('*')
 
-  if (error) {
-    return <p className="p-8 text-red-600">Error loading groceries: {error.message}</p>
-  }
-
   return (
-    <main className="flex min-h-screen flex-col items-center bg-zinc-50 py-16 px-4 dark:bg-black">
-      <div className="w-full max-w-2xl">
-        <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-3xl font-semibold text-black dark:text-zinc-50">
-            Groceries
+    <AppShell>
+      <main className="flex flex-col items-center px-4 py-16">
+        <div className="w-full max-w-2xl">
+        <h1 className="mb-1 font-display text-3xl text-[var(--color-ink)]">            Groceries
           </h1>
-          <Link
-            href="/dashboard"
-            className="rounded-full bg-black px-4 py-2 text-sm text-white dark:bg-white dark:text-black"
-          >
-            Dashboard
-          </Link>
-        </div>
 
-        <div className="overflow-hidden rounded-xl border border-zinc-200 shadow-sm dark:border-zinc-800">
-          <table className="w-full text-left">
-            <thead className="bg-zinc-100 dark:bg-zinc-900">
-              <tr>
-                <th className="px-6 py-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                  Name
-                </th>
-                <th className="px-6 py-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                  Price
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-              {(groceries as Grocery[]).map((item, index) => (
-                <tr
-                  key={index}
-                  className="bg-white hover:bg-zinc-50 dark:bg-black dark:hover:bg-zinc-900"
-                >
-                  <td className="px-6 py-3 text-zinc-900 dark:text-zinc-100">
-                    {item.Name}
-                  </td>
-                  <td className="px-6 py-3 text-zinc-900 dark:text-zinc-100">
-                    ${item.Price}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {error ? (
+            <p className="text-red-600">Error loading groceries: {error.message}</p>
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-zinc-200 shadow-sm dark:border-zinc-800">
+              <table className="w-full text-left">
+                <thead className="bg-zinc-100 dark:bg-zinc-900">
+                  <tr>
+                    <th className="px-6 py-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                      Name
+                    </th>
+                    <th className="px-6 py-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                      Price
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                  {(groceries as Grocery[])?.map((item, index) => (
+                    <tr
+                      key={index}
+                      className="bg-white hover:bg-zinc-50 dark:bg-black dark:hover:bg-zinc-900"
+                    >
+                      <td className="px-6 py-3 text-zinc-900 dark:text-zinc-100">
+                        {item.Name}
+                      </td>
+                      <td className="px-6 py-3 text-zinc-900 dark:text-zinc-100">
+                        ${item.Price}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {groceries?.length === 0 && (
+                <p className="p-6 text-center text-sm text-zinc-400">
+                  No items to show while logged in (RLS currently scopes reads to anonymous users).
+                </p>
+              )}
+            </div>
+          )}
         </div>
-      </div>
-    </main>
+      </main>
+    </AppShell>
   )
 }
