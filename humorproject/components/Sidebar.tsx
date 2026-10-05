@@ -4,9 +4,10 @@ import { usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 const links = [
-  { href: '/', label: 'Groceries', icon: '🛒' },
   { href: '/dashboard', label: 'Dashboard', icon: '🏠' },
   { href: '/profile', label: 'Profile', icon: '👤' },
+  { href: '/generate', label: 'Generate', icon: '🎨' },
+  { href: '/rate', label: 'Rate', icon: '⭐' }
 ]
 
 export default function Sidebar() {
