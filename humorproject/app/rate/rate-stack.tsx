@@ -19,8 +19,6 @@ export default function RateStack({
   const [queue, setQueue] = useState(generations)
   const [voting, setVoting] = useState(false)
 
-  // Keep local queue in sync if the server sends a fresh list
-  // (e.g. after navigating back to this page)
   useEffect(() => {
     setQueue(generations)
   }, [generations])
@@ -67,22 +65,36 @@ export default function RateStack({
         </div>
       </div>
 
-      <div className="mt-5 flex justify-center gap-4">
-        <button
-          onClick={() => handleVote('up')}
-          disabled={!loggedIn || voting}
-          className="sticker rounded-full bg-[var(--color-like)] px-8 py-3 text-xl font-bold disabled:opacity-50"
-        >
-          👍
-        </button>
-        <button
-          onClick={() => handleVote('down')}
-          disabled={!loggedIn || voting}
-          className="sticker rounded-full bg-[var(--color-dislike)] px-8 py-3 text-xl font-bold disabled:opacity-50"
-        >
-          👎
-        </button>
-      </div>
+      {loggedIn ? (
+        <div className="mt-5 flex justify-center gap-4">
+          <button
+            onClick={() => handleVote('up')}
+            disabled={voting}
+            className="sticker rounded-full bg-[var(--color-like)] px-8 py-3 text-xl font-bold disabled:opacity-50"
+          >
+            👍
+          </button>
+          <button
+            onClick={() => handleVote('down')}
+            disabled={voting}
+            className="sticker rounded-full bg-[var(--color-dislike)] px-8 py-3 text-xl font-bold disabled:opacity-50"
+          >
+            👎
+          </button>
+        </div>
+      ) : (
+        <div className="sticker mt-5 flex flex-col items-center gap-2 rounded-xl bg-[var(--color-surface)] p-4 text-center">
+          <p className="text-sm font-semibold text-[var(--color-ink)]">
+            Sign in to vote on this caption
+          </p>
+          <a
+            href="/login"
+            className="sticker rounded-full bg-[var(--color-skip)] px-5 py-2 text-sm font-bold text-[var(--color-ink)]"
+          >
+            Sign in with Google
+          </a>
+        </div>
+      )}
 
       <p className="mt-4 text-center text-sm font-medium text-[var(--color-content-ink)] opacity-60">
         {queue.length} left

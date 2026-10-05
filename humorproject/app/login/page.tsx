@@ -15,13 +15,27 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-zinc-50 dark:bg-black">
-      <button
-        onClick={handleLogin}
-        className="rounded-full bg-black px-6 py-3 text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
-      >
-        Sign in with Google
-      </button>
+    <main className="page-fade-in flex min-h-screen flex-col items-center justify-center px-4">
+      <div className="sticker flex flex-col items-center gap-6 rounded-2xl bg-[var(--color-content-bg)] p-10 text-center">
+        <h1 className="font-display text-4xl text-[var(--color-content-ink)]">
+          🎭 CapRate
+        </h1>
+        <p className="max-w-xs text-sm font-medium text-[var(--color-content-ink)] opacity-70">
+          Sign in to generate captions and vote on your favorites.
+        </p>
+        <button
+          onClick={handleLogin}
+          className="sticker rounded-full bg-[var(--color-skip)] px-6 py-3 text-sm font-bold text-[var(--color-ink)]"
+        >
+          Sign in with Google
+        </button>
+        <a
+          href="/rate"
+          className="text-xs font-medium text-[var(--color-content-ink)] underline opacity-60"
+        >
+          Just browsing? See captions without signing in →
+        </a>
+      </div>
     </main>
   )
 }
