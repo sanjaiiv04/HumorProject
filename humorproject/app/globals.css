@@ -10,7 +10,7 @@
   --color-muted: #6B6B6B;
 }
 
-@media (prefers-color-scheme: dark) {
+@media (prefers-color-scheme: light) {
   :root {
     --color-bg: #161616;
     --color-surface: #1F1F1F;

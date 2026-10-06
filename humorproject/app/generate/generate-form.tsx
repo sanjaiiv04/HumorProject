@@ -111,10 +111,24 @@ export default function GenerateForm() {
         onSubmit={handleSubmit}
         className="sticker flex flex-col gap-4 rounded-2xl bg-[var(--color-content-bg)] p-6 text-[var(--color-content-ink)]"
       >
-        <label className="flex flex-col gap-1 text-sm font-semibold">
+      <div className="flex flex-col gap-2">
+        <label htmlFor="image-upload" className="text-sm font-semibold">
           Upload an image
-          <input type="file" accept="image/*" onChange={handleFileChange} />
         </label>
+        <input
+          id="image-upload"
+          type="file"
+          accept="image/*"
+          onChange={handleFileChange}
+          className="hidden"
+        />
+        <label
+          htmlFor="image-upload"
+          className="sticker w-fit cursor-pointer rounded-full bg-[var(--color-surface)] px-5 py-2.5 text-sm font-bold text-[var(--color-ink)]"
+        >
+          {file ? '📷 Change Image' : '📷 Choose Image'}
+        </label>
+      </div>
 
         {preview && (
           // eslint-disable-next-line @next/next/no-img-element
