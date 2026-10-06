@@ -18,7 +18,7 @@ export default async function GeneratePage() {
     <AppShell>
       <main className="flex flex-col items-center px-4 py-16">
         <div className="w-full max-w-lg">
-          <h1 className="mb-6 font-display text-3xl text-[var(--color-content-ink)]">
+          <h1 className="mb-6 font-display text-3xl text-[var(--color-ink)]">
             Generate a Caption
           </h1>
           <GenerateForm />

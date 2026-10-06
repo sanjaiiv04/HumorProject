@@ -1,25 +1,14 @@
 @import "tailwindcss";
-
 :root {
-  --color-bg: #FFFDF7;
-  --color-surface: #FFFFFF;
-  --color-ink: #161616;
-  --color-like: #C6F135;
-  --color-dislike: #FF5C5C;
+  --color-bg: #FFFDF5;
+  --color-surface: #FFFDF5;
+  --color-ink: #000000;
+  --color-like: #88D498;
+  --color-dislike: #FF6B6B;
   --color-skip: #FFD23F;
-  --color-muted: #6B6B6B;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    --color-bg: #161616;
-    --color-surface: #1F1F1F;
-    --color-ink: #FFFDF7;
-    --color-like: #D4FF5C;
-    --color-dislike: #FF7A7A;
-    --color-skip: #FFDB6B;
-    --color-muted: #9A9A9A;
-  }
+  --color-muted: #5A5A52;
+  --color-focus: #74B9FF;
+  --color-lavender: #B8A9FA;
 }
 
 body {
@@ -31,16 +20,21 @@ body {
   font-family: var(--font-display);
 }
 
-/* Sticker-style hard shadow, used on cards and primary buttons */
+/* Neubrutalist hard shadow, used on cards and primary buttons */
 .sticker {
-  border: 2.5px solid var(--color-ink);
-  box-shadow: 4px 4px 0 var(--color-ink);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  border: 3px solid var(--color-ink);
+  box-shadow: 5px 5px 0 0 var(--color-ink);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.sticker:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 7px 7px 0 0 var(--color-ink);
 }
 
 .sticker:active {
   transform: translate(2px, 2px);
-  box-shadow: 2px 2px 0 var(--color-ink);
+  box-shadow: 2px 2px 0 0 var(--color-ink);
 }
 
 @keyframes fadeIn {
@@ -52,6 +46,16 @@ body {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+.sticker:focus-visible,
+.nb-input:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
 .page-fade-in {

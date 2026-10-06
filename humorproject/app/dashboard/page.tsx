@@ -27,16 +27,15 @@ export default async function Dashboard() {
     <AppShell>
       <main className="flex flex-col items-center px-4 py-16">
         <div className="w-full max-w-lg">
-          <h1 className="mb-1 font-display text-3xl text-[var(--color-content-ink)]">
+          <h1 className="mb-1 font-display text-3xl text-[var(--color-ink)]">
             {profile?.first_name ? `Welcome, ${profile.first_name}!` : 'Welcome!'}
           </h1>
           <p className="mb-8 text-[var(--color-muted)]">
             Here&apos;s your profile and activity.
           </p>
 
-          {/* --- Profile Info --- */}
           {needsProfile ? (
-            <div className="sticker mb-8 rounded-2xl bg-[var(--color-content-bg)] p-6 text-[var(--color-content-ink)]">
+            <div className="sticker mb-8 rounded-2xl bg-[var(--color-surface)] p-6 text-[var(--color-ink)]">
               <p className="mb-4 font-semibold">You haven&apos;t completed your profile yet.</p>
               <a
                 href="/profile"
@@ -46,7 +45,7 @@ export default async function Dashboard() {
               </a>
             </div>
           ) : (
-            <div className="sticker mb-8 overflow-hidden rounded-2xl bg-[var(--color-content-bg)]">
+            <div className="sticker mb-8 overflow-hidden rounded-2xl bg-[var(--color-surface)]">
               <div className="flex items-center gap-4 border-b-2 border-[var(--color-ink)] p-6">
                 {profile?.avatar_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -61,11 +60,11 @@ export default async function Dashboard() {
                   </div>
                 )}
                 <div>
-                  <p className="text-lg font-bold text-[var(--color-content-ink)]">
+                  <p className="text-lg font-bold text-[var(--color-ink)]">
                     {profile?.first_name} {profile?.last_name}
                   </p>
                   {profile?.location && (
-                    <p className="text-sm text-[var(--color-content-ink)] opacity-70">
+                    <p className="text-sm text-[var(--color-ink)] opacity-70">
                       📍 {profile.location}
                     </p>
                   )}
@@ -75,19 +74,19 @@ export default async function Dashboard() {
               <div className="grid grid-cols-2 gap-4 p-6 text-sm">
                 <div>
                   <p className="text-[var(--color-muted)]">Phone</p>
-                  <p className="font-semibold text-[var(--color-content-ink)]">
+                  <p className="font-semibold text-[var(--color-ink)]">
                     {profile?.phone || '—'}
                   </p>
                 </div>
                 <div>
                   <p className="text-[var(--color-muted)]">Date of birth</p>
-                  <p className="font-semibold text-[var(--color-content-ink)]">
+                  <p className="font-semibold text-[var(--color-ink)]">
                     {profile?.date_of_birth || '—'}
                   </p>
                 </div>
                 <div className="col-span-2">
                   <p className="text-[var(--color-muted)]">Bio</p>
-                  <p className="font-semibold text-[var(--color-content-ink)]">
+                  <p className="font-semibold text-[var(--color-ink)]">
                     {profile?.bio || '—'}
                   </p>
                 </div>
@@ -96,7 +95,7 @@ export default async function Dashboard() {
               <div className="border-t-2 border-[var(--color-ink)] p-4">
                 <a
                   href="/profile"
-                  className="text-sm font-semibold text-[var(--color-content-ink)] underline"
+                  className="text-sm font-semibold text-[var(--color-ink)] underline"
                 >
                   Edit Profile
                 </a>
@@ -104,8 +103,7 @@ export default async function Dashboard() {
             </div>
           )}
 
-          {/* --- Voting Stats --- */}
-          <h2 className="mb-4 font-display text-xl text-[var(--color-content-ink)]">
+          <h2 className="mb-4 font-display text-xl text-[var(--color-ink)]">
             Your Stats
           </h2>
           <div className="mb-8 grid grid-cols-3 gap-3">
@@ -123,8 +121,7 @@ export default async function Dashboard() {
             </div>
           </div>
 
-          {/* --- Recent votes --- */}
-          <h2 className="mb-4 font-display text-xl text-[var(--color-content-ink)]">
+          <h2 className="mb-4 font-display text-xl text-[var(--color-ink)]">
             Recent Votes
           </h2>
           <RecentVotes votes={myVotes?.slice(0, 5) ?? []} />

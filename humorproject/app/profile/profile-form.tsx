@@ -96,12 +96,12 @@ export default function ProfileForm({
   }
 
   const inputClass =
-    'rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white'
+    'rounded-lg border-2 border-[var(--color-ink)] px-3 py-2 text-sm bg-[var(--color-surface)] text-[var(--color-ink)] focus:outline-none focus:ring-2 focus:ring-[var(--color-skip)]'
 
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex flex-col gap-5 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
+      className="sticker flex flex-col gap-5 rounded-2xl bg-[var(--color-surface)] p-6"
     >
       <div className="flex flex-col items-center gap-3">
         {preview || avatarUrl ? (
@@ -109,26 +109,27 @@ export default function ProfileForm({
           <img
             src={preview || avatarUrl}
             alt="Profile"
-            className="h-24 w-24 rounded-full object-cover ring-2 ring-zinc-200 dark:ring-zinc-700"
+            className="h-24 w-24 rounded-full object-cover ring-2 ring-[var(--color-ink)]"
           />
         ) : (
-          <div className="flex h-24 w-24 items-center justify-center rounded-full bg-zinc-200 text-2xl text-zinc-500 dark:bg-zinc-800">
+          <div className="flex h-24 w-24 items-center justify-center rounded-full bg-[var(--color-bg)] text-2xl text-[var(--color-muted)]">
             {firstName?.[0] ?? '?'}
           </div>
         )}
-        <label className="cursor-pointer text-sm font-medium text-zinc-600 underline dark:text-zinc-400">
+        <label htmlFor="avatar-upload" className="cursor-pointer text-sm font-medium text-[var(--color-ink)] underline">
           Change photo
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleFileChange}
-            className="hidden"
-          />
         </label>
+        <input
+          id="avatar-upload"
+          type="file"
+          accept="image/*"
+          onChange={handleFileChange}
+          className="hidden"
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <label className="flex flex-col gap-1 text-sm text-zinc-700 dark:text-zinc-300">
+        <label className="flex flex-col gap-1 text-sm font-semibold text-[var(--color-ink)]">
           First name
           <input
             type="text"
@@ -138,7 +139,7 @@ export default function ProfileForm({
           />
         </label>
 
-        <label className="flex flex-col gap-1 text-sm text-zinc-700 dark:text-zinc-300">
+        <label className="flex flex-col gap-1 text-sm font-semibold text-[var(--color-ink)]">
           Last name
           <input
             type="text"
@@ -149,7 +150,7 @@ export default function ProfileForm({
         </label>
       </div>
 
-      <label className="flex flex-col gap-1 text-sm text-zinc-700 dark:text-zinc-300">
+      <label className="flex flex-col gap-1 text-sm font-semibold text-[var(--color-ink)]">
         Bio
         <textarea
           value={bio}
@@ -161,7 +162,7 @@ export default function ProfileForm({
       </label>
 
       <div className="grid grid-cols-2 gap-4">
-        <label className="flex flex-col gap-1 text-sm text-zinc-700 dark:text-zinc-300">
+        <label className="flex flex-col gap-1 text-sm font-semibold text-[var(--color-ink)]">
           Phone
           <input
             type="tel"
@@ -172,7 +173,7 @@ export default function ProfileForm({
           />
         </label>
 
-        <label className="flex flex-col gap-1 text-sm text-zinc-700 dark:text-zinc-300">
+        <label className="flex flex-col gap-1 text-sm font-semibold text-[var(--color-ink)]">
           Location
           <input
             type="text"
@@ -184,7 +185,7 @@ export default function ProfileForm({
         </label>
       </div>
 
-      <label className="flex flex-col gap-1 text-sm text-zinc-700 dark:text-zinc-300">
+      <label className="flex flex-col gap-1 text-sm font-semibold text-[var(--color-ink)]">
         Date of birth
         <input
           type="date"
@@ -197,17 +198,17 @@ export default function ProfileForm({
       <button
         type="submit"
         disabled={saving}
-        className="rounded-full bg-black px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:opacity-50 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
+        className="sticker rounded-full bg-[var(--color-skip)] px-4 py-2.5 text-sm font-bold text-[var(--color-ink)] disabled:opacity-50"
       >
         {saving ? 'Saving...' : 'Save Profile'}
       </button>
 
       {message && (
         <p
-          className={`text-sm ${
+          className={`text-sm font-semibold ${
             message.startsWith('Error') || message.startsWith('Upload error')
-              ? 'text-red-600'
-              : 'text-green-600'
+              ? 'text-[var(--color-dislike)]'
+              : 'text-[var(--color-like)]'
           }`}
         >
           {message}
