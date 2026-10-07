@@ -1,8 +1,6 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { revalidatePath } from 'next/cache'
-
 export async function castVote(generationId: string, voteType: 'up' | 'down') {
   const supabase = await createClient()
 
@@ -23,6 +21,4 @@ export async function castVote(generationId: string, voteType: 'up' | 'down') {
     )
 
   if (error) throw new Error(error.message)
-
-  revalidatePath('/rate')
 }

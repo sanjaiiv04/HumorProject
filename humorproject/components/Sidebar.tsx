@@ -36,7 +36,7 @@ export default function Sidebar() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
-    window.location.href = '/rate'
+    window.location.href = '/'
   }
 
   // Shared classes for any text that should fade/shrink away when collapsed
@@ -62,8 +62,7 @@ export default function Sidebar() {
 
       <div>
         <h2 className="mb-8 flex items-center gap-2 px-2 font-display text-lg text-[var(--color-ink)]">
-          <span>🎭</span>
-          <span className={labelClass}>CapRate</span>
+        <a href="/" className="flex items-center gap-2"><span>🎭</span><span className={labelClass}>CapRate</span></a>
         </h2>
         <nav className="flex flex-col gap-1">
           {links.map((link) => {

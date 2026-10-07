@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-
+import { preferenceExamples, type VoteRow } from '@/lib/ml/recommend'
 async function callGeminiWithRetry(url: string, body: object, retries = 2): Promise<Response> {
   for (let i = 0; i <= retries; i++) {
     const res = await fetch(url, {
@@ -37,13 +37,26 @@ export async function POST(request: Request) {
   const base64Image = Buffer.from(imageBuffer).toString('base64')
   const mimeType = imageRes.headers.get('content-type') || 'image/jpeg'
 
-  const basePrompt =
+  const [{ data: gens }, { data: votes }] = await Promise.all([
+    supabase.from('generations').select('id, caption').order('created_at', { ascending: false }).limit(200),
+    supabase.from('votes').select('user_id, generation_id, vote_type'),
+  ])
+
+  const { liked, disliked } = preferenceExamples(gens ?? [], (votes ?? []) as VoteRow[])
+
+  let basePrompt =
     'Write one short, funny meme-style caption for this image. Keep it under 15 words. Return ONLY the caption text, no quotes, no extra commentary.'
 
-  const finalPrompt = userPrompt
-    ? `${basePrompt} Style/context from the user: ${userPrompt}`
-    : basePrompt
+  if (liked.length > 0) {
+    basePrompt += `\n\nCaptions the community rated highly (match their tone, length and humor):\n${liked.map((c) => `- ${c}`).join('\n')}`
+  }
+  if (disliked.length > 0) {
+    basePrompt += `\n\nCaptions the community disliked (avoid this style):\n${disliked.map((c) => `- ${c}`).join('\n')}`
+  }
 
+  const finalPrompt = userPrompt
+    ? `${basePrompt}\n\nStyle/context from the user: ${userPrompt}`
+    : basePrompt
   const geminiRes = await callGeminiWithRetry(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`,
     {
