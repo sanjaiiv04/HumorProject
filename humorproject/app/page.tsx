@@ -66,7 +66,7 @@ export default async function LandingPage() {
             href={user ? '/generate' : '/login'}
             className="sticker rounded-full bg-[var(--color-surface)] px-8 py-4 text-base font-bold"
           >
-            {user ? 'Generate a caption' : 'Sign in with Google'}
+            {user ? 'Generate a caption' : 'Sign in with your UNI'}
           </a>
         </div>
       </section>
@@ -141,7 +141,7 @@ export default async function LandingPage() {
             href={user ? '/rate' : '/login'}
             className="sticker inline-block rounded-full bg-[var(--color-surface)] px-8 py-3 font-bold"
           >
-            {user ? 'Go to the feed →' : 'Sign in with Google →'}
+            {user ? 'Go to the feed →' : 'Sign in with your UNI →'}
           </a>
         </div>
       </section>

@@ -27,7 +27,7 @@ export default function LoginPage() {
           onClick={handleLogin}
           className="sticker rounded-full bg-[var(--color-skip)] px-6 py-3 text-sm font-bold text-[var(--color-ink)]"
         >
-          Sign in with Google
+          Sign in with your UNI
         </button>
         <a
           href="/rate"
