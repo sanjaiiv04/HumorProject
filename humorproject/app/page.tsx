@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { topRated, type VoteRow } from '@/lib/ml/recommend'
+import ColumbiaNotice from '@/components/ColumbiaNotice'
 
 const steps = [
   { icon: '📸', title: 'Upload a photo', body: 'Any photo works: your dorm room, a bodega cat, the 1 train at 8am.', color: 'bg-[var(--color-skip)]' },
@@ -25,6 +26,7 @@ export default async function LandingPage() {
 
   return (
     <main className="page-fade-in min-h-screen text-[var(--color-ink)]">
+      <ColumbiaNotice />
       {/* Nav */}
       <header className="mx-auto flex max-w-5xl items-center justify-between px-6 py-5">
         <a href="/" className="font-display text-xl">🎭 CapRate</a>

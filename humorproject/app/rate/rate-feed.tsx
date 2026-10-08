@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { castVote } from './actions'
+import ShareButton from './share-button'
 
 type Vote = 'up' | 'down' | null
 type Reason = 'similar' | 'trending' | 'fresh'
@@ -136,7 +137,7 @@ export default function RateFeed({
                 <p className="mb-4 text-lg font-bold text-[var(--color-ink)]">
                   &ldquo;{item.caption}&rdquo;
                 </p>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <button
                     onClick={() => handleVote(item.id, 'up')}
                     className={`sticker rounded-full px-6 py-2 text-lg font-bold ${
@@ -153,6 +154,7 @@ export default function RateFeed({
                   >
                     👎
                   </button>
+                  <ShareButton generationId={item.id} loggedIn={loggedIn} />
                   {!loggedIn && (
                     <span className="text-xs font-semibold text-[var(--color-muted)]">
                       Sign in to vote
