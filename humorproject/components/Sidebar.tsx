@@ -45,11 +45,11 @@ export default function Sidebar() {
   }`
 
   return (
-    <aside
-      className={`relative flex h-screen shrink-0 flex-col justify-between border-r-[3px] border-[var(--color-ink)] bg-[var(--color-surface)] py-6 transition-[width,padding] duration-300 ease-in-out ${
+      <aside
+        className={`sticky top-0 flex h-screen shrink-0 flex-col justify-between self-start border-r-[3px] border-[var(--color-ink)] bg-[var(--color-surface)] py-6 transition-[width,padding] duration-300 ease-in-out ${
         collapsed ? 'w-20 px-2' : 'w-56 px-4'
-      }`}
-    >
+        }`}
+      >
       <button
         onClick={toggleCollapsed}
         className="sticker absolute -right-3 top-8 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-[var(--color-skip)] text-sm font-bold transition-transform duration-300"
