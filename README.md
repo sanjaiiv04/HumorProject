@@ -46,3 +46,12 @@
 * Your Product Manager will act as your Product Manager for this assignment. It’s your job to listen carefully to their feedback when they try out your application during the Feedback Group session. Iterate on their feedback and implement their suggestions.
 * Turn off Vercel “deployment protection” so that you can view your page in Incognito Mode.
 * When you are finished, deploy your app to Vercel and submit the commit-specific URL of your deployment in the Submissions section.
+
+
+## Week - 5 Get feedback and iterate
+* Iterate on your rating app project.
+* Remember, your app doesn’t have to be humor related. It has to have some sort of AI-generated media (text, photo, video, etc). It also has to give users the ability to rate or vote on this AI-generated media.
+* Focus on creating features in your application that give users real value.
+* Ask yourself “Would I use this app more than once?”
+* Listen carefully to your Product Manager (Product Manager) and your colleagues in your Feedback Group.
+* Be sure to submit the “commit-specific” Vercel link.
