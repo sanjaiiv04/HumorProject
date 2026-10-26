@@ -1,86 +1,44 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { preferenceExamples, type VoteRow } from '@/lib/ml/recommend'
-async function callGeminiWithRetry(url: string, body: object, retries = 2): Promise<Response> {
-  for (let i = 0; i <= retries; i++) {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-    if (res.status !== 503) return res
-    await new Promise((r) => setTimeout(r, 1500))
-  }
-  return fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-}
+import { createLoggingClient } from '@/lib/supabase/admin'
+import { CaptionError, generateLoggedCaption, uploadedImagePath } from '@/lib/generation/caption-service'
+
+export const runtime = 'nodejs'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
+  const { data: { user }, error } = await supabase.auth.getUser()
+  if (error || !user) return NextResponse.json({ error: 'Not logged in' }, { status: 401 })
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return NextResponse.json({ error: 'Not logged in' }, { status: 401 })
+  let input: unknown
+  try { input = await request.json() } catch {
+    return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
+  }
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
+  const { imageUrl, userPrompt = '' } = input as Record<string, unknown>
+  if (typeof imageUrl !== 'string' || imageUrl.length > 2048 || typeof userPrompt !== 'string' || userPrompt.length > 2000) {
+    return NextResponse.json({ error: 'Provide an uploaded image and style/context of at most 2000 characters.' }, { status: 400 })
   }
 
-  const { imageUrl, userPrompt } = await request.json()
-
-  if (!imageUrl) {
-    return NextResponse.json({ error: 'Missing image' }, { status: 400 })
-  }
-
-  const imageRes = await fetch(imageUrl)
-  const imageBuffer = await imageRes.arrayBuffer()
-  const base64Image = Buffer.from(imageBuffer).toString('base64')
-  const mimeType = imageRes.headers.get('content-type') || 'image/jpeg'
-
-  const [{ data: gens }, { data: votes }] = await Promise.all([
-    supabase.from('generations').select('id, caption').order('created_at', { ascending: false }).limit(200),
-    supabase.from('votes').select('user_id, generation_id, vote_type'),
-  ])
-
-  const { liked, disliked } = preferenceExamples(gens ?? [], (votes ?? []) as VoteRow[])
-
-  let basePrompt =
-    'Write one short, funny meme-style caption for this image. Keep it under 15 words. Return ONLY the caption text, no quotes, no extra commentary.'
-
-  if (liked.length > 0) {
-    basePrompt += `\n\nCaptions the community rated highly (match their tone, length and humor):\n${liked.map((c) => `- ${c}`).join('\n')}`
-  }
-  if (disliked.length > 0) {
-    basePrompt += `\n\nCaptions the community disliked (avoid this style):\n${disliked.map((c) => `- ${c}`).join('\n')}`
-  }
-
-  const finalPrompt = userPrompt
-    ? `${basePrompt}\n\nStyle/context from the user: ${userPrompt}`
-    : basePrompt
-  const geminiRes = await callGeminiWithRetry(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`,
-    {
-      contents: [
-        {
-          parts: [
-            { text: finalPrompt },
-            { inline_data: { mime_type: mimeType, data: base64Image } },
-          ],
-        },
-      ],
+  try {
+    const projectUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const apiKey = process.env.GEMINI_API_KEY
+    if (!projectUrl || !apiKey) return NextResponse.json({ error: 'Caption generation is temporarily unavailable.' }, { status: 503 })
+    const storagePath = uploadedImagePath(imageUrl, projectUrl, user.id)
+    let logClient: ReturnType<typeof createLoggingClient>
+    try { logClient = createLoggingClient() } catch {
+      console.error('generation_logging_configuration_missing')
+      return NextResponse.json({ error: 'Caption generation is temporarily unavailable.' }, { status: 503 })
     }
-  )
-
-  if (!geminiRes.ok) {
-    const errText = await geminiRes.text()
-    return NextResponse.json({ error: `Gemini error: ${errText}` }, { status: 500 })
+    const result = await generateLoggedCaption({
+      userClient: supabase, logClient, userId: user.id, imageUrl,
+      storagePath, userPrompt: userPrompt.trim(), apiKey,
+    })
+    // Only "Keep this one" writes to generations; logging never publishes a caption.
+    return NextResponse.json(result)
+  } catch (error) {
+    if (error instanceof CaptionError) return NextResponse.json({ error: error.message, requestId: error.requestId }, { status: error.status })
+    console.error('generation_unexpected_error')
+    return NextResponse.json({ error: 'Caption generation failed. Please try again.' }, { status: 500 })
   }
-
-  const geminiData = await geminiRes.json()
-  const caption =
-    geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ||
-    'Could not generate a caption.'
-
-  // No DB insert here anymore — just return the result for the user to review
-  return NextResponse.json({ caption, prompt: finalPrompt })
 }

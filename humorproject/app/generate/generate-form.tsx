@@ -33,66 +33,58 @@ export default function GenerateForm() {
     setLoading(true)
     setError('')
     setSaved(false)
-
-    const res = await fetch('/api/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageUrl, userPrompt }),
-    })
-
-    const data = await res.json()
-
-    if (!res.ok) {
-      setError(data.error || 'Something went wrong.')
+    setResult(null)
+    try {
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl, userPrompt }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Something went wrong.')
+      setResult({ caption: data.caption, prompt: data.prompt })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to generate a caption. Please try again.')
+    } finally {
       setLoading(false)
-      return
     }
-
-    setResult({ caption: data.caption, prompt: data.prompt })
-    setLoading(false)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!file) return
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      setError('You must be logged in.')
+    if (!file || loading || saving) return
+    if (file.size > 10 * 1024 * 1024) {
+      setError('Please use an image smaller than 10 MB.')
       return
     }
-
-    // Upload once; reused for retries
-    const fileExt = file.name.split('.').pop()
-    const filePath = `${user.id}-${Date.now()}.${fileExt}`
-
-    const { error: uploadError } = await supabase.storage
-      .from('generations')
-      .upload(filePath, file)
-
-    if (uploadError) {
-      setError(`Upload error: ${uploadError.message}`)
-      return
+    setLoading(true)
+    setError('')
+    setResult(null)
+    setSaved(false)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('You must be logged in.')
+      const fileExt = file.name.split('.').pop()
+      const filePath = `${user.id}-${crypto.randomUUID()}.${fileExt}`
+      const { error: uploadError } = await supabase.storage.from('generations').upload(filePath, file)
+      if (uploadError) throw new Error(`Upload error: ${uploadError.message}`)
+      const { data: publicUrlData } = supabase.storage.from('generations').getPublicUrl(filePath)
+      setUploadedUrl(publicUrlData.publicUrl)
+      await generateCaption(publicUrlData.publicUrl)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to upload this image. Please try again.')
+    } finally {
+      setLoading(false)
     }
-
-    const { data: publicUrlData } = supabase.storage
-      .from('generations')
-      .getPublicUrl(filePath)
-
-    setUploadedUrl(publicUrlData.publicUrl)
-    await generateCaption(publicUrlData.publicUrl)
   }
 
   const handleRetry = async () => {
-    if (!uploadedUrl) return
+    if (!uploadedUrl || loading || saving) return
     await generateCaption(uploadedUrl)
   }
 
   const handleSave = async () => {
-    if (!uploadedUrl || !result) return
+    if (!uploadedUrl || !result || loading || saving) return
     setSaving(true)
     try {
       await saveGeneration(uploadedUrl, result.prompt, result.caption)
@@ -119,6 +111,7 @@ export default function GenerateForm() {
           id="image-upload"
           type="file"
           accept="image/*"
+          disabled={loading || saving}
           onChange={handleFileChange}
           className="hidden"
         />
@@ -142,13 +135,15 @@ export default function GenerateForm() {
             value={userPrompt}
             onChange={(e) => setUserPrompt(e.target.value)}
             placeholder="e.g. sarcastic, college-student energy"
+            maxLength={2000}
+            disabled={loading || saving}
             className="rounded-lg border-2 border-[var(--color-ink)] px-3 py-2 text-sm"
           />
         </label>
 
         <button
           type="submit"
-          disabled={!file || loading}
+          disabled={!file || loading || saving}
           className="sticker rounded-lg bg-[var(--color-skip)] px-5 py-2.5 text-sm font-bold text-[var(--color-ink)] disabled:opacity-50"
         >
           {loading ? 'Generating...' : 'Generate Caption'}
@@ -171,14 +166,14 @@ export default function GenerateForm() {
             <div className="flex gap-3">
               <button
                 onClick={handleSave}
-                disabled={saving}
+                disabled={saving || loading}
                 className="sticker rounded-full bg-[var(--color-like)] px-5 py-2 text-sm font-bold disabled:opacity-50"
               >
                 {saving ? 'Saving...' : '✅ Keep this one'}
               </button>
               <button
                 onClick={handleRetry}
-                disabled={loading}
+                disabled={loading || saving}
                 className="sticker rounded-full bg-[var(--color-surface)] px-5 py-2 text-sm font-bold text-[var(--color-ink)] disabled:opacity-50"
               >
                 {loading ? 'Retrying...' : '🔁 Try again'}
