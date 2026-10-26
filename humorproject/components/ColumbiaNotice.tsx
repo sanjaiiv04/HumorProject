@@ -7,7 +7,7 @@ export default function ColumbiaNotice() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    if (params.get('error') === 'columbia') {
+    if (['columbia', 'signup-access'].includes(params.get('error') ?? '')) {
       setOpen(true)
       // Clean the URL so refreshing doesn't bring the pop-up back
       window.history.replaceState({}, '', window.location.pathname)
@@ -42,10 +42,10 @@ export default function ColumbiaNotice() {
           id="columbia-notice-title"
           className="mb-2 font-display text-2xl text-[var(--color-ink)]"
         >
-          Columbia email required
+          Unable to complete sign-in
         </h2>
         <p className="mb-6 text-sm font-medium text-[var(--color-muted)]">
-          Please use your Columbia email (@columbia.edu) to sign in.
+          Use your Columbia UNI email, an approved domain, or an email whitelisted by an administrator. If your email qualifies, please try signing in again.
         </p>
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
           <button

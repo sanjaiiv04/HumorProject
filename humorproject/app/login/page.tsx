@@ -21,13 +21,13 @@ export default function LoginPage() {
           🎭 CapRate
         </h1>
         <p className="max-w-xs text-sm font-medium text-[var(--color-content-ink)] opacity-70">
-          Sign in to generate captions and vote on your favorites.
+          Sign in with a Columbia UNI email or an email approved by a CapRate administrator to generate captions and vote.
         </p>
         <button
           onClick={handleLogin}
           className="sticker rounded-full bg-[var(--color-skip)] px-6 py-3 text-sm font-bold text-[var(--color-ink)]"
         >
-          Sign in with your UNI
+          Sign in with Google
         </button>
         <a
           href="/rate"

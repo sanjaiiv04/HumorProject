@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
-const COLUMBIA_EMAIL = /^[a-z]{2,3}[0-9]{1,4}@columbia\.edu$/
+import { canSignIn } from '@/lib/auth/signup-access'
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
@@ -17,20 +17,20 @@ export async function GET(request: Request) {
     if (!error) {
       const { data: { user } } = await supabase.auth.getUser()
 
-      if (user?.email && COLUMBIA_EMAIL.test(user.email.toLowerCase())) {
+      if (user && await canSignIn(supabase, user.email)) {
         return NextResponse.redirect(`${origin}${next}`)
       }
 
-      // Signed in with Google, but not a Columbia account: undo the session
+      // An authenticated identity still needs to qualify for CapRate access.
       await supabase.auth.signOut()
-      return NextResponse.redirect(`${origin}/?error=columbia`)
+      return NextResponse.redirect(`${origin}/?error=signup-access`)
     }
   }
 
-  // Supabase sends error params when the database trigger rejects a brand-new
-  // non-Columbia signup, so that case gets the same pop-up
+  // Supabase can reject signup before a session exists. Keep the message
+  // general: OAuth failures can also arrive here.
   if (searchParams.get('error') || searchParams.get('error_description')) {
-    return NextResponse.redirect(`${origin}/?error=columbia`)
+    return NextResponse.redirect(`${origin}/?error=signup-access`)
   }
 
   // Someone opened /auth/callback directly with nothing attached
