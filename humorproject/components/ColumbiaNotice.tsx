@@ -45,7 +45,7 @@ export default function ColumbiaNotice() {
           Unable to complete sign-in
         </h2>
         <p className="mb-6 text-sm font-medium text-[var(--color-muted)]">
-          Use your Columbia UNI email, an approved domain, or an email whitelisted by an administrator. If your email qualifies, please try signing in again.
+          Use an email at an approved domain or an email whitelisted by an administrator. If your email qualifies, please try signing in again.
         </p>
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
           <button

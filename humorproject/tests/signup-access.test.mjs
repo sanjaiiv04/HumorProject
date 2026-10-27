@@ -10,20 +10,20 @@ registerHooks({resolve(s,c,n){
 const {canSignIn}=await import('../lib/auth/signup-access.ts')
 const {GET}=await import('../app/auth/callback/route.ts')
 const rpc=async()=>({data:false,error:null})
-test('original UNI boundaries and case behavior remain exact',async()=>{
- for(const email of ['ab1@columbia.edu','abc1234@columbia.edu','AB123@COLUMBIA.EDU'])assert.equal(await canSignIn({rpc},email),true,email)
+test('Columbia addresses require database approval just like other addresses',async()=>{
+ for(const email of ['ab1@columbia.edu','abc1234@columbia.edu','AB123@COLUMBIA.EDU'])assert.equal(await canSignIn({rpc},email),false,email)
  for(const email of [undefined,'','a1@columbia.edu','abcd1@columbia.edu','ab12345@columbia.edu','staff@columbia.edu','ab1@sub.columbia.edu','ab1@columbia.edu.evil.test',' ab1@columbia.edu'])assert.equal(await canSignIn({rpc},email),false,email)
 })
-test('additional eligibility requires literal RPC true without error',async()=>{
+test('eligibility requires literal RPC true without error',async()=>{
  for(const [data,error,expected] of [[true,null,true],[false,null,false],[null,null,false],['true',null,false],[true,{message:'failed'},false]]){
  let called=false
  assert.equal(await canSignIn({rpc:async(...args)=>{called=true;assert.deepEqual(args,['current_user_signup_allowed']);return {data,error}}},'external@example.test'),expected)
  assert.equal(called,true)
  }
 })
-test('RPC outage preserves Columbia UNI access and denies others',async()=>{
+test('RPC outage fails closed for Columbia and external accounts',async()=>{
  const client={rpc:async()=>{throw Error('offline')}}
- assert.equal(await canSignIn(client,'ab1@columbia.edu'),true)
+ assert.equal(await canSignIn(client,'ab1@columbia.edu'),false)
  assert.equal(await canSignIn(client,'external@example.test'),false)
 })
 function client(email,allowed=true,exchangeError=null){
@@ -56,4 +56,10 @@ test('external redirect remains blocked',async()=>{
 test('OAuth failure and direct callback are handled',async()=>{
  assert.equal((await GET(new Request('https://caprate.test/auth/callback?error=access_denied'))).headers.get('location'),'https://caprate.test/?error=signup-access')
  assert.equal((await GET(new Request('https://caprate.test/auth/callback'))).headers.get('location'),'https://caprate.test/login')
+})
+
+test('Columbia callback cannot bypass a rejected database decision',async()=>{
+ const out=client('ab123@columbia.edu',false)
+ const response=await GET(new Request('https://caprate.test/auth/callback?code=test'))
+ assert.equal(response.headers.get('location'),'https://caprate.test/?error=signup-access');assert.equal(out(),true)
 })

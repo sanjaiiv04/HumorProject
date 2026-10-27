@@ -21,7 +21,7 @@ export default function LoginPage() {
           🎭 CapRate
         </h1>
         <p className="max-w-xs text-sm font-medium text-[var(--color-content-ink)] opacity-70">
-          Sign in with a Columbia UNI email or an email approved by a CapRate administrator to generate captions and vote.
+          Sign in with an email approved by a CapRate administrator to generate captions and vote.
         </p>
         <button
           onClick={handleLogin}
