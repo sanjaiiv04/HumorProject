@@ -1,61 +1,27 @@
-# Caption generation history
+# Configured caption generation
 
-The `/api/generate` server route records each new generation attempt in the shared
-Supabase database. The admin app reads these records directly.
+CapRate reads the shared Supabase configuration on every Generate/Try again request. Deploy this update together with the admin changes. No database migration is required.
 
-## Configuration
+Keep `GEMINI_API_KEY` and one server-only Supabase credential (`SUPABASE_SECRET_KEY` or `SUPABASE_SERVICE_ROLE_KEY`) configured in local and deployment environments. Never use a `NEXT_PUBLIC_` prefix for these credentials. The privileged client reads configuration and writes history; the cookie-backed client verifies the user and reads community ratings.
 
-Keep the existing public Supabase URL/key and `GEMINI_API_KEY`. In this app's
-`.env.local`, add **one** server-side Supabase credential for the same project:
+## Execution
 
-```dotenv
-SUPABASE_SECRET_KEY=your-project-secret-key
-# Or, for a legacy service_role credential:
-# SUPABASE_SERVICE_ROLE_KEY=your-project-service-role-key
-```
+An enabled mix entry must reference an active chain with 1–4 executable steps. Every step must have an active model/provider, provider slug `google`, a Gemini model identifier, and image support when Include image is enabled. An invalid step excludes its whole chain. Selection is random with probability equal to weight divided by the total eligible weight. If no chain qualifies or configuration cannot load, the request fails without calling Gemini; there is no hardcoded prompt/model fallback.
 
-Use an actual key from Supabase Settings → API Keys, not the placeholder above.
-Never prefix this key with `NEXT_PUBLIC_`, commit it, or include it in browser code.
-Add the same variable in your deployment's environment settings and redeploy.
-Restart the local dev server after editing environment variables.
+Steps run in ascending position order. Each prompt starts with its configured literal prompt text (no template interpolation). Enabled switches add community-rated captions, up to 20 active terms ordered by term, the 10 newest active global/current-chain curated example captions and context, and user style/context. Curated image links are references, not additional image inputs. Each later step receives the previous output; the final output is the returned caption. Only Include image sends the user's uploaded image to that step.
 
-The server uses a separate client with no user session for history writes. Every
-generation still requires a verified signed-in user. Images must be in that
-user's path in the existing `generations` bucket and be at most 10 MB.
+Edit the prompt, model, and switches from Admin → Chain steps → step → Edit prompt and step settings. Terms and examples remain unused until their step switches are enabled. Changes apply to subsequent requests; an in-progress request retains the configuration it loaded. Multi-query configuration loading is not an atomic database snapshot, but the selected values are fixed for the request and recorded before any model call.
 
-## What gets recorded
+Limits: 100 enabled mix entries, fewer than 1000 total loaded steps, four steps per chain, 64000 prompt characters, 16000 output characters per step, 10 MB user image. Overall provider/image work has a 110-second deadline and route `maxDuration=120`; deployment plans may impose shorter limits. Each step retries HTTP 503 at most four times. Other failures stop the chain, retain completed step history, and mark the request failed.
 
-- `generation_requests`: one row per Generate/Try again operation, with the user,
-  image, actual prompt/model snapshot, status, and completion/error information.
-- `llm_responses`: one row per actual Gemini call, including automatic HTTP 503
-  retries, non-success responses, network failures, and empty/blocked output.
-- `images`: metadata for the existing uploaded object; retries reuse this record.
+## History and saved captions
 
-The actual prompt and returned caption are stored, along with token counts when
-provided and elapsed milliseconds. Provider metadata is allowlisted. Keys,
-request headers, and base64 image payloads are never stored in history.
+`generation_requests` is created before configuration loading. Before calling Gemini it records the selected chain ID and a snapshot of the mix, steps, models/providers, terms, curated examples, community examples, and limits. `llm_responses` records the real step/model IDs, exact prompt, real response or error, retry number, token counts, and latency for every actual call. Keys, auth headers, and image base64 are never logged. Uploaded images retain the existing ownership validation and metadata recording.
 
-A request is recorded before calling Gemini. If history cannot be initialized,
-the server returns an availability error without making a paid model call.
-Successful calls with empty/blocked output are failures, not fabricated captions.
-If the database becomes unavailable after a provider call, an attempt may remain
-in `running`; the server logs a request ID for reconciliation.
-
-This phase preserves the current code-based Gemini prompt and model selection.
-Its snapshot explicitly identifies that execution mode. It does not claim to
-execute a database-configured chain, so chain/step/model foreign keys remain
-unset until configuration-based execution is implemented.
-
-Saved captions still enter `generations` only through **Keep this one**. History
-does not backfill old attempts, publish discarded captions, or change signup.
+If history cannot initialize, no paid provider call is made. Database outages after a provider call can leave a request running; the server logs its request ID for reconciliation. Only Keep this one publishes to `generations`; intermediate outputs and discarded captions are history only.
 
 ## Verify
 
-1. Start the user app, sign in, and generate a caption from a new uploaded image.
-2. Open admin Generation requests; the request should be `succeeded`.
-3. Open its responses to see the prompt, caption, model, latency, and token counts.
-4. Choose Try again: this produces another request for the same image.
-5. Keep this one: confirm the caption also appears in the existing media gallery.
+Generate once using the default chain, then inspect its request snapshot and step responses in admin. Change a step prompt or enable terms/examples, generate again, and compare recorded prompts. Disabling every eligible mix entry should produce an error and no Gemini response. Tests use fake clients/fetch and never modify Supabase or call Gemini:
 
-Run offline tests with `node --test tests/generation-logging.test.mjs` (Node 22.18+).
-Tests use fake fetch/database clients and never call Gemini or alter Supabase.
+`node --test tests/configuration.test.mjs tests/generation-logging.test.mjs tests/signup-access.test.mjs`

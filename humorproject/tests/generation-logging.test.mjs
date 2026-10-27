@@ -1,20 +1,24 @@
 import assert from 'node:assert/strict'
 import { registerHooks } from 'node:module'
 import test from 'node:test'
+import { fixtures, BASE_PROMPT, CAPTION_MODEL } from './configuration-fixtures.mjs'
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
+    if (specifier === './configuration') return { url: new URL('../lib/generation/configuration.ts', import.meta.url).href, shortCircuit: true }
     if (specifier === '../ml/recommend') return { url: new URL('../lib/ml/recommend.ts', import.meta.url).href, shortCircuit: true }
     return nextResolve(specifier, context)
   },
 })
-const { BASE_PROMPT, CAPTION_MODEL, MAX_IMAGE_BYTES, CaptionError, generateLoggedCaption, uploadedImagePath, parseGeminiResponse } = await import('../lib/generation/caption-service.ts')
+const { MAX_IMAGE_BYTES, CaptionError, generateLoggedCaption, uploadedImagePath, parseGeminiResponse } = await import('../lib/generation/caption-service.ts')
 const project = 'https://example.supabase.co'
 const userId = '11111111-1111-4111-8111-111111111111'
 const storagePath = `${userId}-photo.png`
 const imageUrl = `${project}/storage/v1/object/public/generations/${storagePath}`
 
-function setup({ responses = [], image = null, failTable = null, failRequestStart = false } = {}) {
+function setup({ responses = [], image = null, failTable = null, failRequestStart = false, configure = () => {}, failRead = null } = {}) {
+  const catalog = fixtures()
+  configure(catalog)
   const writes = []
   const calls = []
   const sleeps = []
@@ -33,12 +37,15 @@ function setup({ responses = [], image = null, failTable = null, failRequestStar
         upsert(values) { write.operation = 'upsert'; write.values = structuredClone(values); return query },
         eq(key, value) { write.filters.push([key, value]); return query },
         select() { return query },
+        order() { return query }, limit() { return query }, in() { return query }, or() { return query },
+        overrideTypes() { return query },
         async single() {
           writes.push(write)
           if (table === failTable || (failRequestStart && table === 'generation_requests' && write.operation === 'insert')) return { data: null, error: { message: 'fake database error' } }
           return { data: { id: table === 'images' ? 'image-id' : 'request-id' }, error: null }
         },
         then(resolve) {
+          if (!write.operation) return Promise.resolve({data: catalog[table] ?? [], error: table === failRead ? {message:'read failed'} : null}).then(resolve)
           writes.push(write)
           return Promise.resolve({ error: table === failTable ? { message: 'fake database error' } : null }).then(resolve)
         },
@@ -87,9 +94,10 @@ test('records a request, uploaded image, exact prompt, real response, and comple
   assert.equal(result.prompt, `${BASE_PROMPT}\n\nStyle/context from the user: sarcastic`)
   const request = app.writes.find(row => row.table === 'generation_requests' && row.operation === 'insert')
   assert.equal(request.values.user_id, userId)
-  assert.equal(request.values.configuration_snapshot.model_identifier, CAPTION_MODEL)
-  assert.equal(request.values.configuration_snapshot.execution_mode, 'existing-single-call')
-  assert.equal(request.values.prompt_chain_id, undefined)
+  assert.equal(request.values.configuration_snapshot.execution_mode, 'configuration-loading')
+  const configured = app.writes.find(row => row.values?.configuration_snapshot?.execution_mode === 'configured-chain')
+  assert.equal(configured.values.prompt_chain_id, 'chain-1')
+  assert.equal(configured.values.configuration_snapshot.steps[0].model.model_identifier, CAPTION_MODEL)
   const response = app.writes.find(row => row.table === 'llm_responses')
   assert.equal(response.values.status, 'succeeded')
   assert.equal(response.values.input_tokens, 12)
@@ -166,4 +174,38 @@ test('response logging failures do not report a successful recorded generation',
   const app = setup({ failTable: 'llm_responses' })
   await assert.rejects(app.run(), /record the model response/)
   assert.equal(app.writes.at(-1).values.status, 'failed')
+})
+
+test('configured steps run in order with distinct models, flags, references, and previous output',async()=>{
+ const app=setup({configure(c){
+  const first=c.prompt_chain_steps[0]
+  first.include_image=false; first.use_community_examples=false;first.include_user_context=false
+  first.prompt_template='Describe the situation.'
+  c.prompt_chain_steps.push({...structuredClone(first),id:'step-2',position:2,prompt_template:'Write the final caption.',include_image:true,use_terms:true,use_curated_examples:true,include_user_context:true,model:{...structuredClone(first.model),id:'model-2',model_identifier:'gemini-custom'}})
+  c.terms=[{id:'term-1',term:'Finals',definition:'Exam season',example:'Study marathon'}]
+  c.ai_generation_examples=[{id:'example-1',caption:'Library is home',context:'Students',sentiment:'positive',image_id:null,prompt_chain_id:null}]
+ }})
+ const result=await app.run()
+ const calls=app.calls.filter(c=>c.url.includes('googleapis.com'))
+ assert.equal(calls.length,2);assert.match(calls[1].url,/gemini-custom:/)
+ const first=JSON.parse(calls[0].options.body).contents[0].parts
+ assert.equal(first.length,1);assert.equal(first[0].text,'Describe the situation.')
+ const second=JSON.parse(calls[1].options.body).contents[0].parts
+ assert.equal(second.length,2);assert.match(second[0].text,/Finals: Exam season/)
+ assert.match(second[0].text,/positive: Library is home/);assert.match(second[0].text,/Previous step output:\nA funny caption/)
+ assert.match(second[0].text,/sarcastic/);assert.equal(result.prompt,second[0].text)
+ assert.deepEqual(app.writes.filter(w=>w.table==='llm_responses').map(w=>[w.values.step_position,w.values.prompt_chain_step_id,w.values.llm_model_id]),[[1,'step-1','model-1'],[2,'step-2','model-2']])
+})
+test('configuration errors are logged and prevent paid model calls without hardcoded fallback',async()=>{
+ for(const options of [{configure:c=>{c.prompt_chain_mix=[]}},{failRead:'prompt_chain_steps'},{configure:c=>{c.prompt_chain_steps[0].model.provider.slug='unsupported'}}]){
+  const app=setup(options)
+  await assert.rejects(app.run(),error=>error.status===503 && error.requestId==='request-id')
+  assert.equal(app.calls.length,0);assert.equal(app.writes.at(-1).values.status,'failed')
+ }
+})
+test('failure in an intermediate step stops the chain',async()=>{
+ const app=setup({configure:c=>{c.prompt_chain_steps.push({...structuredClone(c.prompt_chain_steps[0]),id:'step-2',position:2})},responses:[new Response('failure',{status:400})]})
+ await assert.rejects(app.run(),/HTTP 400/)
+ assert.equal(app.calls.filter(c=>c.url.includes('googleapis.com')).length,1)
+ assert.equal(app.writes.at(-1).values.status,'failed')
 })

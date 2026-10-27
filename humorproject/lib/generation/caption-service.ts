@@ -1,8 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { preferenceExamples, type VoteRow } from '../ml/recommend'
+import { loadConfiguration, buildStepPrompt, ConfigurationError } from './configuration'
 
-export const CAPTION_MODEL = 'gemini-3.5-flash-lite'
-export const BASE_PROMPT = 'Write one short, funny meme-style caption for this image. Keep it under 15 words. Return ONLY the caption text, no quotes, no extra commentary.'
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
 export class CaptionError extends Error {
@@ -91,49 +90,50 @@ interface GenerationOptions {
   apiKey: string
   fetcher?: typeof fetch
   sleep?: (ms: number) => Promise<void>
+  random?: () => number
 }
 
 export async function generateLoggedCaption({
   userClient, logClient, userId, imageUrl, storagePath, userPrompt, apiKey,
-  fetcher = fetch, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)),
+  fetcher = fetch, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), random = Math.random,
 }: GenerationOptions) {
-  // Preserve the existing prompt and community-rating behavior. Catalog/mix
-  // execution is a separate integration; do not falsely associate a configured
-  // chain that this code did not execute.
-  const [{ data: generations }, { data: votes }] = await Promise.all([
-    userClient.from('generations').select('id, caption').order('created_at', { ascending: false }).limit(200),
-    userClient.from('votes').select('user_id, generation_id, vote_type'),
-  ])
-  const { liked, disliked } = preferenceExamples(generations ?? [], (votes ?? []) as VoteRow[])
-  let prompt = BASE_PROMPT
-  if (liked.length) prompt += `\n\nCaptions the community rated highly (match their tone, length and humor):\n${liked.map(caption => `- ${caption}`).join('\n')}`
-  if (disliked.length) prompt += `\n\nCaptions the community disliked (avoid this style):\n${disliked.map(caption => `- ${caption}`).join('\n')}`
-  if (userPrompt) prompt += `\n\nStyle/context from the user: ${userPrompt}`
-
+  const deadline = AbortSignal.timeout(110_000)
   const startedAt = new Date().toISOString()
   const { data: request, error: requestError } = await logClient.from('generation_requests').insert({
     user_id: userId, user_context: userPrompt || null, status: 'running', started_at: startedAt,
-    configuration_snapshot: {
-      source: 'user-facing /api/generate', execution_mode: 'existing-single-call',
-      provider_slug: 'google', model_identifier: CAPTION_MODEL, prompt_text: prompt,
-      image: { storage_bucket: 'generations', storage_path: storagePath },
-      community_examples: { liked, disliked },
-    },
+    configuration_snapshot: { source: 'user-facing /api/generate', execution_mode: 'configuration-loading',
+      image: { storage_bucket: 'generations', storage_path: storagePath } },
   }).select('id').single()
-  // Do not pay for a provider call if its request cannot be recorded first.
   if (requestError || !request) throw new CaptionError('Caption generation is temporarily unavailable. Please try again later.', 503)
   const requestId = request.id as string
   const finishedAt = () => new Date(Math.max(Date.now(), Date.parse(startedAt))).toISOString()
-
   async function finish(status: 'succeeded' | 'failed', message: string | null) {
     const { data, error } = await logClient.from('generation_requests')
       .update({ status, error_message: message, completed_at: finishedAt() })
       .eq('id', requestId).eq('user_id', userId).select('id').single()
     if (error || !data) throw new CaptionError('Could not finalize this generation. Please try again.', 503, requestId)
   }
-
   try {
-    const imageResponse = await fetcher(imageUrl, { redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(15_000) })
+    const config = await loadConfiguration(logClient, random)
+    let community = { liked: [] as string[], disliked: [] as string[] }
+    if (config.steps.some(step => step.use_community_examples)) {
+      const [generations, votes] = await Promise.all([
+        userClient.from('generations').select('id, caption').order('created_at', { ascending: false }).limit(200),
+        userClient.from('votes').select('user_id, generation_id, vote_type'),
+      ])
+      if (generations.error || votes.error) throw new CaptionError('Community examples could not be loaded.', 503, requestId)
+      community = preferenceExamples(generations.data ?? [], (votes.data ?? []) as VoteRow[])
+    }
+    const { data: configuredRequest, error: configError } = await logClient.from('generation_requests')
+      .update({ prompt_chain_id: config.chain.id, configuration_snapshot: {
+        source: 'user-facing /api/generate', execution_mode: 'configured-chain',
+        ...config, community_examples: community,
+        limits: { max_steps: 4, terms: 20, curated_examples: 10, max_prompt_characters: 64000 },
+        curated_example_usage: 'caption-and-context',
+        image: { storage_bucket: 'generations', storage_path: storagePath },
+      } }).eq('id', requestId).eq('user_id', userId).select('id').single()
+    if (configError || !configuredRequest) throw new CaptionError('Could not record the selected configuration.', 503, requestId)
+    const imageResponse = await fetcher(imageUrl, { redirect: 'error', cache: 'no-store', signal: AbortSignal.any([deadline, AbortSignal.timeout(15_000)]) })
     const image = await readImage(imageResponse)
     const { data: imageRow, error: imageError } = await logClient.from('images').upsert({
       uploaded_by: userId, storage_bucket: 'generations', storage_path: storagePath,
@@ -143,58 +143,58 @@ export async function generateLoggedCaption({
     const { data: linkedRequest, error: linkError } = await logClient.from('generation_requests')
       .update({ image_id: imageRow.id }).eq('id', requestId).eq('user_id', userId).select('id').single()
     if (linkError || !linkedRequest) throw new CaptionError('Could not record this generation. Please try again.', 503, requestId)
-
-    const body = JSON.stringify({ contents: [{ parts: [
-      { text: prompt }, { inline_data: { mime_type: image.mimeType, data: image.base64 } },
-    ] }] })
-
-    for (let attempt = 1; attempt <= 4; attempt++) {
-      const callStarted = Date.now()
-      let response: Response | undefined
-      let parsed = parseGeminiResponse(null)
-      let failure: string | null = null
-      try {
-        // Keep credentials out of URLs, error messages, and recorded metadata.
-        response = await fetcher(`https://generativelanguage.googleapis.com/v1beta/models/${CAPTION_MODEL}:generateContent`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-          body, signal: AbortSignal.timeout(25_000),
-        })
-        if (!response.ok) failure = `Gemini returned HTTP ${response.status}.`
-        else {
-          parsed = parseGeminiResponse(await response.json())
-          if (!parsed.caption) failure = 'Gemini returned no caption.'
+    let previous = ''
+    let prompt = ''
+    for (const step of config.steps) {
+      const model = step.model!
+      const provider = model.provider!
+      prompt = buildStepPrompt(step, config, community, userPrompt, previous)
+      const body = JSON.stringify({ contents: [{ parts: [
+        { text: prompt }, ...(step.include_image ? [{ inline_data: { mime_type: image.mimeType, data: image.base64 } }] : []),
+      ] }] })
+      for (let attempt = 1; attempt <= 4; attempt++) {
+        if (deadline.aborted) throw new CaptionError('The caption chain timed out. Please try again.', 504, requestId)
+        const callStarted = Date.now()
+        let response: Response | undefined
+        let parsed = parseGeminiResponse(null)
+        let failure: string | null = null
+        try {
+          response = await fetcher(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model.model_identifier)}:generateContent`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+            body, signal: AbortSignal.any([deadline, AbortSignal.timeout(25_000)]),
+          })
+          if (!response.ok) failure = `Gemini returned HTTP ${response.status}.`
+          else {
+            parsed = parseGeminiResponse(await response.json())
+            if (!parsed.caption) failure = 'Gemini returned no caption.'
+            else if (parsed.caption.length > 16000) failure = 'Gemini returned an oversized response.'
+          }
+        } catch (error) {
+          failure = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')
+            ? 'The Gemini request timed out.' : 'The Gemini response could not be read.'
         }
-      } catch (error) {
-        failure = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')
-          ? 'The Gemini request timed out.' : 'The Gemini response could not be read.'
+        const { error: responseError } = await logClient.from('llm_responses').insert({
+          generation_request_id: requestId, prompt_chain_step_id: step.id, llm_model_id: model.id,
+          step_position: step.position, attempt,
+          provider_slug: provider.slug, model_identifier: model.model_identifier, prompt_text: prompt,
+          response_text: failure ? null : parsed.caption, status: failure ? 'failed' : 'succeeded',
+          http_status: response?.status ?? null, error_message: failure,
+          input_tokens: parsed.inputTokens, output_tokens: parsed.outputTokens,
+          latency_ms: Math.min(2_147_483_647, Math.max(0, Date.now() - callStarted)), response_metadata: parsed.metadata,
+        })
+        if (responseError) throw new CaptionError('Could not record the model response. Please try again.', 503, requestId)
+        if (!failure) { previous = parsed.caption; break }
+        if (response?.status === 503 && attempt < 4 && !deadline.aborted) { await sleep(1500); continue }
+        throw new CaptionError(failure, deadline.aborted ? 504 : 502, requestId)
       }
-      const { error: responseError } = await logClient.from('llm_responses').insert({
-        generation_request_id: requestId, step_position: 1, attempt,
-        provider_slug: 'google', model_identifier: CAPTION_MODEL, prompt_text: prompt,
-        response_text: failure ? null : parsed.caption, status: failure ? 'failed' : 'succeeded',
-        http_status: response?.status ?? null, error_message: failure,
-        input_tokens: parsed.inputTokens, output_tokens: parsed.outputTokens,
-        latency_ms: Math.min(2_147_483_647, Math.max(0, Date.now() - callStarted)),
-        response_metadata: parsed.metadata,
-      })
-      if (responseError) throw new CaptionError('Could not record the model response. Please try again.', 503, requestId)
-      if (!failure) {
-        await finish('succeeded', null)
-        return { caption: parsed.caption, prompt, requestId }
-      }
-      if (response?.status === 503 && attempt < 4) {
-        await sleep(1500)
-        continue
-      }
-      throw new CaptionError(failure, 502, requestId)
     }
-    throw new CaptionError('Gemini is temporarily unavailable.', 502, requestId)
+    await finish('succeeded', null)
+    return { caption: previous, prompt, requestId }
   } catch (error) {
-    const failure = error instanceof CaptionError ? error : new CaptionError('Caption generation failed. Please try again.', 502, requestId)
-    try { await finish('failed', failure.message) } catch {
-      // Avoid dumping database/provider errors that could contain credentials.
-      console.error('generation_request_finalize_failed', { requestId })
-    }
+    const failure = error instanceof CaptionError ? error
+      : error instanceof ConfigurationError ? new CaptionError(error.message, 503, requestId)
+      : new CaptionError('Caption generation failed. Please try again.', 502, requestId)
+    try { await finish('failed', failure.message) } catch { console.error('generation_request_finalize_failed', { requestId }) }
     throw new CaptionError(failure.message, failure.status, requestId)
   }
 }

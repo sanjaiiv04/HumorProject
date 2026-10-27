@@ -4,6 +4,7 @@ import { createLoggingClient } from '@/lib/supabase/admin'
 import { CaptionError, generateLoggedCaption, uploadedImagePath } from '@/lib/generation/caption-service'
 
 export const runtime = 'nodejs'
+export const maxDuration = 120
 
 export async function POST(request: Request) {
   const supabase = await createClient()
