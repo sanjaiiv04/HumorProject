@@ -161,7 +161,7 @@ export async function generateLoggedCaption({
         try {
           response = await fetcher(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model.model_identifier)}:generateContent`, {
             method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-            body, signal: AbortSignal.any([deadline, AbortSignal.timeout(25_000)]),
+            body, signal: AbortSignal.any([deadline, AbortSignal.timeout(60_000)]),
           })
           if (!response.ok) failure = `Gemini returned HTTP ${response.status}.`
           else {

@@ -12,7 +12,7 @@ Steps run in ascending position order. Each prompt starts with its configured li
 
 Edit the prompt, model, and switches from Admin → Chain steps → step → Edit prompt and step settings. Terms and examples remain unused until their step switches are enabled. Changes apply to subsequent requests; an in-progress request retains the configuration it loaded. Multi-query configuration loading is not an atomic database snapshot, but the selected values are fixed for the request and recorded before any model call.
 
-Limits: 100 enabled mix entries, fewer than 1000 total loaded steps, four steps per chain, 64000 prompt characters, 16000 output characters per step, 10 MB user image. Overall provider/image work has a 110-second deadline and route `maxDuration=120`; deployment plans may impose shorter limits. Each step retries HTTP 503 at most four times. Other failures stop the chain, retain completed step history, and mark the request failed.
+Limits: 100 enabled mix entries, fewer than 1000 total loaded steps, four steps per chain, 64000 prompt characters, 16000 output characters per step, 10 MB user image. Each Gemini call has a 60-second timeout. Overall provider/image work has a 110-second deadline and route `maxDuration=120`; deployment plans may impose shorter limits. Each step retries HTTP 503 at most four times. Other failures stop the chain, retain completed step history, and mark the request failed.
 
 ## History and saved captions
 

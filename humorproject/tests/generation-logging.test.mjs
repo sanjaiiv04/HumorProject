@@ -57,6 +57,7 @@ function setup({ responses = [], image = null, failTable = null, failRequestStar
     calls.push({ url, options })
     if (url === imageUrl) return image ?? new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/png' } })
     const response = responses.shift()
+    if (typeof response === 'function') return response(options)
     if (response instanceof Error) throw response
     return response ?? new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: 'A funny caption.' }] }, finishReason: 'STOP' }], usageMetadata: { promptTokenCount: 12, candidatesTokenCount: 4 }, modelVersion: CAPTION_MODEL }))
   }
@@ -208,4 +209,32 @@ test('failure in an intermediate step stops the chain',async()=>{
  await assert.rejects(app.run(),/HTTP 400/)
  assert.equal(app.calls.filter(c=>c.url.includes('googleapis.com')).length,1)
  assert.equal(app.writes.at(-1).values.status,'failed')
+})
+
+test('Gemini gets 60 seconds per call and the 110-second chain deadline still cancels it', async t => {
+  for (const [duration, status] of [[60000, 502], [110000, 504]]) {
+    const controllers = new Map()
+    const timeout = t.mock.method(AbortSignal, 'timeout', milliseconds => {
+      const controller = new AbortController()
+      controllers.set(milliseconds, controller)
+      return controller.signal
+    })
+    try {
+      const app = setup({ responses: [options => {
+        assert.equal(controllers.has(60000), true)
+        assert.equal(controllers.has(110000), true)
+        assert.equal(controllers.has(25000), false)
+        assert.equal(options.signal.aborted, false)
+        controllers.get(duration).abort(new DOMException('Test timeout', 'TimeoutError'))
+        assert.equal(options.signal.aborted, true)
+        throw options.signal.reason
+      }] })
+      await assert.rejects(app.run(), error => error.status === status && /timed out/.test(error.message))
+      assert.equal(app.writes.filter(row => row.table === 'llm_responses').length, 1)
+      assert.equal(app.writes.at(-1).values.status, 'failed')
+      assert.equal(app.sleeps.length, 0)
+    } finally {
+      timeout.mock.restore()
+    }
+  }
 })
